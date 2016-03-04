@@ -13,17 +13,40 @@ namespace bdversion
 {
     class Program
     {
+        public static IList<KeyValuePair<string, Uri>> GetBuildDefinitionListFromProject(TfsConfigurationServer configurationServer, Guid collectionId, string projectName)
+        {
+            List<IBuildDefinition> buildDefinitionList = null;
+            List<KeyValuePair<string, Uri>> buildDefinitionInfoList = null;
+
+            try
+            {
+                buildDefinitionInfoList = new List<KeyValuePair<string, Uri>>();
+                TfsTeamProjectCollection tfsProjectCollection =
+                configurationServer.GetTeamProjectCollection(collectionId);
+                tfsProjectCollection.Authenticate();
+                var buildServer = (IBuildServer)tfsProjectCollection.GetService(typeof(IBuildServer));
+                buildDefinitionList = new List<IBuildDefinition>(buildServer.QueryBuildDefinitions(projectName));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+
+            if (buildDefinitionList != null && buildDefinitionList.Count > 0)
+            {
+                foreach (IBuildDefinition builddef in buildDefinitionList)
+                {
+                    buildDefinitionInfoList.Add(new KeyValuePair<string, Uri>(builddef.Name, builddef.Uri));
+                }
+            }
+            return buildDefinitionInfoList;
+        }
+
         static void Main(string[] args)
         {
             Uri tfsUri = new Uri("http://tfstta.int.thomson.com:8080/tfs");
 
             TfsConfigurationServer server = TfsConfigurationServerFactory.GetConfigurationServer(tfsUri);
-
-            TeamFoundationServer test = new TeamFoundationServer(tfsUri);
-            IBuildServer ibs = (IBuildServer)test.GetService(typeof(IBuildServer));
-            IBuildDefinition ibd = ibs.GetBuildDefinition("CSTax", "USTaxSampleServices");
-
-            TfsTeamProjectCollection tfstpc = TfsTeamProjectCollectionFactory.GetTeamProjectCollection(new Uri("http://tfstta.int.thomson.com:8080/tfs/DefaultCollection" ) );
 
             // Get the catalog of team project collections
             ReadOnlyCollection <CatalogNode> collectionNodes = server.CatalogNode.QueryChildren(
@@ -49,6 +72,19 @@ namespace bdversion
                 foreach (CatalogNode projectNode in projectNodes)
                 {
                     Console.WriteLine(" Team Project: " + projectNode.Resource.DisplayName);
+
+                    var list = GetBuildDefinitionListFromProject(server,
+                        new Guid(collectionNode.Resource.Properties["instanceId"]),
+                        projectNode.Resource.DisplayName);
+
+
+                    foreach( var pair in list) 
+                    {
+                        Console.WriteLine("\t" + pair.Key + ":" + pair.Value);
+                    }
+
+
+
                 }
             }
         }
